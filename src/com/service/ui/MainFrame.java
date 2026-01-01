@@ -2,6 +2,9 @@ package com.service.ui;
 
 import javax.swing.*;
 import java.awt.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 public class MainFrame extends JFrame {
 
@@ -10,7 +13,7 @@ public class MainFrame extends JFrame {
 
     public MainFrame() {
         setTitle("Manisa Seyahat - Servis Kura Sistemi");
-        setSize(1000, 500);
+        setSize(1100, 550);
         setLocationRelativeTo(null);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
@@ -23,77 +26,114 @@ public class MainFrame extends JFrame {
         plateListModel = new DefaultListModel<>();
         districtListModel = new DefaultListModel<>();
 
-        // Sol Panel (Plakalar)
-        JPanel platePanel = new JPanel(new BorderLayout());
+        // Sol Panel (PLAKALAR)
+        JPanel platePanel = createPlatePanel();
 
-        JTextField plateField = new JTextField();
-        JButton addPlateButton = new JButton("Ekle");
-        JButton removePlateButton = new JButton("Sil");
+        // Sag Panel (ILCELER)
+        JPanel districtPanel = createDistrictPanel();
 
-        JPanel plateInputPanel = new JPanel(new GridLayout(2, 1, 5, 5));
-        plateInputPanel.add(plateField);
+        // Alt Panel (KURA BUTONU)
+        JButton drawButton = new JButton("🎲 Kura Çek");
+        drawButton.setFont(new Font("Arial", Font.BOLD, 16));
 
-        JPanel plateButtonPanel = new JPanel(new GridLayout(1, 2, 5, 5));
-        plateButtonPanel.add(addPlateButton);
-        plateButtonPanel.add(removePlateButton);
+        drawButton.addActionListener(e -> drawLots());
 
-        plateInputPanel.add(plateButtonPanel);
+        JPanel bottomPanel = new JPanel();
+        bottomPanel.add(drawButton);
 
-        JList<String> plateList = new JList<>(plateListModel);
-        JScrollPane plateScroll = new JScrollPane(plateList);
-        plateScroll.setBorder(BorderFactory.createTitledBorder("Araç Plakaları"));
-
-        platePanel.add(plateInputPanel, BorderLayout.NORTH);
-        platePanel.add(plateScroll, BorderLayout.CENTER);
-
-        // Sag Panel (Ilceler)
-        JPanel districtPanel = new JPanel(new BorderLayout());
-
-        JTextField districtField = new JTextField();
-        JButton addDistrictButton = new JButton("Ekle");
-        JButton removeDistrictButton = new JButton("Sil");
-
-        JPanel districtInputPanel = new JPanel(new GridLayout(2, 1, 5, 5));
-        districtInputPanel.add(districtField);
-
-        JPanel districtButtonPanel = new JPanel(new GridLayout(1, 2, 5, 5));
-        districtButtonPanel.add(addDistrictButton);
-        districtButtonPanel.add(removeDistrictButton);
-
-        districtInputPanel.add(districtButtonPanel);
-
-        JList<String> districtList = new JList<>(districtListModel);
-        JScrollPane districtScroll = new JScrollPane(districtList);
-        districtScroll.setBorder(
-                BorderFactory.createTitledBorder("Öğrenci Servis Güzergahları")
-        );
-
-        districtPanel.add(districtInputPanel, BorderLayout.NORTH);
-        districtPanel.add(districtScroll, BorderLayout.CENTER);
-
-        // Orta Ayirici
         JSplitPane splitPane = new JSplitPane(
                 JSplitPane.HORIZONTAL_SPLIT,
                 platePanel,
                 districtPanel
         );
-        splitPane.setDividerLocation(500);
+        splitPane.setDividerLocation(550);
 
         add(splitPane, BorderLayout.CENTER);
+        add(bottomPanel, BorderLayout.SOUTH);
+    }
 
-        // Plaka Buton
-        addPlateButton.addActionListener(e -> {
-            String plate = plateField.getText().trim();
-            if (!plate.isEmpty()) {
-                plateListModel.addElement(plate);
-                plateField.setText("");
+    //  Kura Cekimi
+    private void drawLots() {
+        int plateCount = plateListModel.size();
+        int districtCount = districtListModel.size();
+
+        if (plateCount == 0 || districtCount == 0) {
+            showWarning("Plaka ve ilçe listeleri boş olamaz!");
+            return;
+        }
+
+        if (plateCount != districtCount) {
+            showWarning("Plaka sayısı ile ilçe sayısı eşit olmalıdır!");
+            return;
+        }
+
+        List<String> districts = new ArrayList<>();
+        for (int i = 0; i < districtListModel.size(); i++) {
+            districts.add(districtListModel.get(i));
+        }
+
+        Collections.shuffle(districts);
+
+        StringBuilder result = new StringBuilder("🎯 KURA SONUCU:\n\n");
+
+        for (int i = 0; i < plateListModel.size(); i++) {
+            result.append(plateListModel.get(i))
+                    .append("  →  ")
+                    .append(districts.get(i))
+                    .append("\n");
+        }
+
+        JTextArea textArea = new JTextArea(result.toString());
+        textArea.setEditable(false);
+        textArea.setFont(new Font("Monospaced", Font.PLAIN, 14));
+
+        JScrollPane scrollPane = new JScrollPane(textArea);
+        scrollPane.setPreferredSize(new Dimension(500, 300));
+
+        JOptionPane.showMessageDialog(
+                this,
+                scrollPane,
+                "Kura Sonucu",
+                JOptionPane.INFORMATION_MESSAGE
+        );
+    }
+
+    //  Paneller
+    private JPanel createPlatePanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+
+        JTextField field = new JTextField();
+        JButton add = new JButton("Ekle");
+        JButton remove = new JButton("Sil");
+
+        JPanel input = new JPanel(new GridLayout(2, 1, 5, 5));
+        input.add(field);
+
+        JPanel buttons = new JPanel(new GridLayout(1, 2, 5, 5));
+        buttons.add(add);
+        buttons.add(remove);
+
+        input.add(buttons);
+
+        JList<String> list = new JList<>(plateListModel);
+        JScrollPane scroll = new JScrollPane(list);
+        scroll.setBorder(BorderFactory.createTitledBorder("Araç Plakaları"));
+
+        panel.add(input, BorderLayout.NORTH);
+        panel.add(scroll, BorderLayout.CENTER);
+
+        add.addActionListener(e -> {
+            String text = field.getText().trim();
+            if (!text.isEmpty()) {
+                plateListModel.addElement(text);
+                field.setText("");
             } else {
                 showWarning("Plaka boş olamaz!");
             }
         });
 
-        removePlateButton.addActionListener(e -> {
-            int index = plateList.getSelectedIndex();
+        remove.addActionListener(e -> {
+            int index = list.getSelectedIndex();
             if (index != -1) {
                 plateListModel.remove(index);
             } else {
@@ -101,25 +141,54 @@ public class MainFrame extends JFrame {
             }
         });
 
-        // Ilce Buton
-        addDistrictButton.addActionListener(e -> {
-            String district = districtField.getText().trim();
-            if (!district.isEmpty()) {
-                districtListModel.addElement(district);
-                districtField.setText("");
+        return panel;
+    }
+
+    private JPanel createDistrictPanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+
+        JTextField field = new JTextField();
+        JButton add = new JButton("Ekle");
+        JButton remove = new JButton("Sil");
+
+        JPanel input = new JPanel(new GridLayout(2, 1, 5, 5));
+        input.add(field);
+
+        JPanel buttons = new JPanel(new GridLayout(1, 2, 5, 5));
+        buttons.add(add);
+        buttons.add(remove);
+
+        input.add(buttons);
+
+        JList<String> list = new JList<>(districtListModel);
+        JScrollPane scroll = new JScrollPane(list);
+        scroll.setBorder(
+                BorderFactory.createTitledBorder("Öğrenci Servis Güzergahları")
+        );
+
+        panel.add(input, BorderLayout.NORTH);
+        panel.add(scroll, BorderLayout.CENTER);
+
+        add.addActionListener(e -> {
+            String text = field.getText().trim();
+            if (!text.isEmpty()) {
+                districtListModel.addElement(text);
+                field.setText("");
             } else {
                 showWarning("İlçe adı boş olamaz!");
             }
         });
 
-        removeDistrictButton.addActionListener(e -> {
-            int index = districtList.getSelectedIndex();
+        remove.addActionListener(e -> {
+            int index = list.getSelectedIndex();
             if (index != -1) {
                 districtListModel.remove(index);
             } else {
                 showWarning("Silmek için ilçe seçin!");
             }
         });
+
+        return panel;
     }
 
     private void showWarning(String message) {
