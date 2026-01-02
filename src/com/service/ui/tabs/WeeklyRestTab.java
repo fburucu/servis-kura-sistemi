@@ -89,7 +89,9 @@ public class WeeklyRestTab extends JPanel {
                     "Salı",
                     "Çarşamba",
                     "Perşembe",
-                    "Cuma"
+                    "Cuma",
+                    "Cumartesi",
+                    "Pazar"
             };
 
             tableModel = new DefaultTableModel(columns, 0) {
@@ -126,3 +128,5 @@ public class WeeklyRestTab extends JPanel {
         }
 
 }
+
+
