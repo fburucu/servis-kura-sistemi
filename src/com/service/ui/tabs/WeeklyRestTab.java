@@ -14,7 +14,6 @@ public class WeeklyRestTab extends JPanel {
     static class Vehicle {
         String plate;
         boolean fromStudentService;
-        boolean usedWeekendRest;
         LocalDate lastRestDate;
 
         Vehicle(String plate, boolean fromStudentService) {
@@ -45,7 +44,6 @@ public class WeeklyRestTab extends JPanel {
 
     /* ================= UI ================= */
     private void initUI() {
-
         JPanel leftPanel = createVehiclePanel();
         JPanel rightPanel = createTablePanel();
 
@@ -147,14 +145,12 @@ public class WeeklyRestTab extends JPanel {
 
         JPanel bottom = new JPanel(new GridLayout(3, 2, 5, 5));
 
-        // Sadece tarih
+        // Sadece tarih için spinner
         weekStartSpinner = new JSpinner(new SpinnerDateModel());
-        JSpinner.DateEditor weekEditor = new JSpinner.DateEditor(weekStartSpinner, "dd/MM/yyyy");
-        weekStartSpinner.setEditor(weekEditor);
+        weekStartSpinner.setEditor(new JSpinner.DateEditor(weekStartSpinner, "dd/MM/yyyy"));
 
         yatarDateSpinner = new JSpinner(new SpinnerDateModel());
-        JSpinner.DateEditor yatarEditor = new JSpinner.DateEditor(yatarDateSpinner, "dd/MM/yyyy");
-        yatarDateSpinner.setEditor(yatarEditor);
+        yatarDateSpinner.setEditor(new JSpinner.DateEditor(yatarDateSpinner, "dd/MM/yyyy"));
 
         bottom.add(new JLabel("Hafta Başlangıç (Pzt):"));
         bottom.add(weekStartSpinner);
@@ -175,7 +171,6 @@ public class WeeklyRestTab extends JPanel {
 
     /* ================= PLAN LOGIC ================= */
     private void generatePlan() {
-
         Vehicle yatarVehicle = (Vehicle) yatarVehicleCombo.getSelectedItem();
         if (yatarVehicle == null) {
             showWarning("Yatara gidecek araç seçilmedi!");
@@ -193,39 +188,49 @@ public class WeeklyRestTab extends JPanel {
             plan.put(d, new ArrayList<>());
         }
 
-        Set<LocalDate> forbidden = Set.of(
-                yatarDate,
-                yatarDate.plusDays(1)
-        );
+        // Yatar aracı için yasak günler
+        Set<LocalDate> forbidden = Set.of(yatarDate, yatarDate.plusDays(1));
 
+        // Tüm araçlar listesi (yatar dahil)
         List<Vehicle> vehicles = Collections.list(vehicleListModel.elements());
-        vehicles.remove(yatarVehicle);
+        vehicles.add(yatarVehicle);
 
-        // Öğrenci servisinden gelenler: 1 kere hafta sonu
+        // Rastgele dağılım için araçları karıştır
+        Collections.shuffle(vehicles);
+
+        Random rnd = new Random();
+
         for (Vehicle v : vehicles) {
-            if (v.fromStudentService && !v.usedWeekendRest) {
-                DayOfWeek d = Math.random() < 0.5 ? DayOfWeek.SATURDAY : DayOfWeek.SUNDAY;
-                plan.get(d).add(v);
-                v.usedWeekendRest = true;
-            }
-        }
-
-        // Haftaiçi dağıtım
-        for (Vehicle v : vehicles) {
-            if (v.fromStudentService && v.usedWeekendRest) continue;
-
+            // Haftalık uygun günleri oluştur
+            List<LocalDate> availableDates = new ArrayList<>();
             for (int i = 0; i < 5; i++) {
                 LocalDate date = weekStart.plusDays(i);
-                if (forbidden.contains(date)) continue;
+                if (v == yatarVehicle && forbidden.contains(date)) continue;
+                availableDates.add(date);
+            }
 
+            // Günleri rastgele sırala
+            Collections.shuffle(availableDates, rnd);
+
+            // İlk boş/güvenli güne ata
+            boolean assigned = false;
+            for (LocalDate date : availableDates) {
                 DayOfWeek day = date.getDayOfWeek();
-                int limit = (day == DayOfWeek.FRIDAY) ? 4 : 6;
+                int limit = (day == DayOfWeek.FRIDAY) ? 4 : 7;
 
                 if (plan.get(day).size() < limit) {
                     plan.get(day).add(v);
                     v.lastRestDate = date;
+                    assigned = true;
                     break;
                 }
+            }
+
+            // Eğer hiç uygun gün bulunamazsa, haftanın rastgele bir gününe zorla ata
+            if (!assigned && !availableDates.isEmpty()) {
+                LocalDate date = availableDates.get(rnd.nextInt(availableDates.size()));
+                plan.get(date.getDayOfWeek()).add(v);
+                v.lastRestDate = date;
             }
         }
 
