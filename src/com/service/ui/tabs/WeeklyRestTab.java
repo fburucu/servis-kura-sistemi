@@ -3,274 +3,214 @@ package com.service.ui.tabs;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
-import java.time.*;
-import java.time.format.DateTimeFormatter;
+import java.time.DayOfWeek;
 import java.util.*;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class WeeklyRestTab extends JPanel {
 
-    /* ================= MODEL ================= */
+    // Referans liste (İlk açılış için)
+    private static final Map<String, DayOfWeek> BASE_REST_MAP = new HashMap<>() {{
+        put("557", DayOfWeek.MONDAY); put("244", DayOfWeek.MONDAY); put("339", DayOfWeek.MONDAY);
+        put("025", DayOfWeek.MONDAY); put("207", DayOfWeek.MONDAY); put("050", DayOfWeek.MONDAY);
+        put("777", DayOfWeek.TUESDAY); put("390", DayOfWeek.TUESDAY); put("517", DayOfWeek.TUESDAY);
+        put("710", DayOfWeek.TUESDAY); put("575", DayOfWeek.TUESDAY); put("479", DayOfWeek.TUESDAY);
+        put("033", DayOfWeek.TUESDAY);
+        put("125", DayOfWeek.WEDNESDAY); put("EV707", DayOfWeek.WEDNESDAY); put("765", DayOfWeek.WEDNESDAY);
+        put("654", DayOfWeek.WEDNESDAY);  put("945", DayOfWeek.WEDNESDAY);  put("532", DayOfWeek.WEDNESDAY);
+        put("116", DayOfWeek.WEDNESDAY);
+        put("344", DayOfWeek.THURSDAY); put("1234", DayOfWeek.THURSDAY); put("101", DayOfWeek.THURSDAY);
+        put("857", DayOfWeek.THURSDAY); put("228", DayOfWeek.THURSDAY); put("UV707", DayOfWeek.THURSDAY);
+        put("234", DayOfWeek.THURSDAY);
+        put("051", DayOfWeek.FRIDAY); put("021", DayOfWeek.FRIDAY); put("DM510", DayOfWeek.FRIDAY);
+        put("203", DayOfWeek.SATURDAY);
+    }};
+
     static class Vehicle {
         String plate;
-        boolean fromStudentService;
-        LocalDate lastRestDate;
+        boolean isNewcomer;
+        DayOfWeek lastRestDay;
 
-        Vehicle(String plate, boolean fromStudentService) {
+        Vehicle(String plate, boolean isNewcomer) {
             this.plate = plate;
-            this.fromStudentService = fromStudentService;
+            this.isNewcomer = isNewcomer;
+            this.lastRestDay = BASE_REST_MAP.getOrDefault(plate, DayOfWeek.FRIDAY);
         }
-
         @Override
-        public String toString() {
-            return plate;
-        }
+        public String toString() { return plate; }
     }
 
-    /* ================= FIELDS ================= */
     private DefaultListModel<Vehicle> vehicleListModel = new DefaultListModel<>();
     private DefaultTableModel tableModel;
-
     private JComboBox<Vehicle> yatarVehicleCombo;
-    private JSpinner weekStartSpinner;
-    private JSpinner yatarDateSpinner;
-    private JLabel titleLabel;
+    private JComboBox<DayOfWeek> yatarDayCombo;
 
-    /* ================= CONSTRUCTOR ================= */
     public WeeklyRestTab() {
         setLayout(new BorderLayout());
         initUI();
+        loadInitialData();
     }
 
-    /* ================= UI ================= */
     private void initUI() {
-        JPanel leftPanel = createVehiclePanel();
-        JPanel rightPanel = createTablePanel();
-
-        JSplitPane splitPane = new JSplitPane(
-                JSplitPane.HORIZONTAL_SPLIT,
-                leftPanel,
-                rightPanel
-        );
-        splitPane.setDividerLocation(340);
-
-        add(splitPane, BorderLayout.CENTER);
-    }
-
-    /* ================= LEFT PANEL ================= */
-    private JPanel createVehiclePanel() {
-        JPanel panel = new JPanel(new BorderLayout());
+        // ... (UI Tasarımı öncekiyle aynı kalıyor, sadece generatePlan mantığı değişti)
+        JPanel leftPanel = new JPanel(new BorderLayout());
+        leftPanel.setBorder(BorderFactory.createTitledBorder("Araç Yönetimi"));
 
         JTextField plateField = new JTextField();
-        JCheckBox studentCheck = new JCheckBox("Öğrenci servisinden geldi");
+        JCheckBox newcomerCheck = new JCheckBox("Yeni Gelen (Okul/Fabrika)");
+        JButton addButton = new JButton("Araç Ekle");
+        JButton removeButton = new JButton("Seçili Aracı Sil");
 
-        JButton addButton = new JButton("Ekle");
-        JButton removeButton = new JButton("Sil");
-
-        yatarVehicleCombo = new JComboBox<>();
-        yatarVehicleCombo.setBorder(
-                BorderFactory.createTitledBorder("Yatara Gidecek Araç")
-        );
-
-        JPanel inputPanel = new JPanel(new GridLayout(6, 1, 5, 5));
+        JPanel inputPanel = new JPanel(new GridLayout(4, 1, 5, 5));
         inputPanel.add(new JLabel("Plaka:"));
         inputPanel.add(plateField);
-        inputPanel.add(studentCheck);
-        inputPanel.add(yatarVehicleCombo);
-
-        JPanel buttons = new JPanel(new GridLayout(1, 2, 5, 5));
-        buttons.add(addButton);
-        buttons.add(removeButton);
-        inputPanel.add(buttons);
+        inputPanel.add(newcomerCheck);
+        inputPanel.add(addButton);
 
         JList<Vehicle> vehicleList = new JList<>(vehicleListModel);
-        JScrollPane scrollPane = new JScrollPane(vehicleList);
-        scrollPane.setBorder(
-                BorderFactory.createTitledBorder("Aktif Çalışan Araçlar")
-        );
+        leftPanel.add(inputPanel, BorderLayout.NORTH);
+        leftPanel.add(new JScrollPane(vehicleList), BorderLayout.CENTER);
+        leftPanel.add(removeButton, BorderLayout.SOUTH);
+
+        JPanel rightPanel = new JPanel(new BorderLayout());
+        String[] columns = {"Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"};
+        tableModel = new DefaultTableModel(columns, 0);
+        JTable table = new JTable(tableModel);
+        table.setRowHeight(25);
+
+        JPanel controlPanel = new JPanel(new FlowLayout());
+        yatarVehicleCombo = new JComboBox<>();
+        yatarDayCombo = new JComboBox<>(new DayOfWeek[]{
+                DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY ,DayOfWeek.SATURDAY, DayOfWeek.SUNDAY
+        });
+        JButton generateBtn = new JButton("Programı Hazırla");
+
+        controlPanel.add(new JLabel("Yatar Aracı:"));
+        controlPanel.add(yatarVehicleCombo);
+        controlPanel.add(new JLabel("Yatar Günü:"));
+        controlPanel.add(yatarDayCombo);
+        controlPanel.add(generateBtn);
+
+        rightPanel.add(new JScrollPane(table), BorderLayout.CENTER);
+        rightPanel.add(controlPanel, BorderLayout.SOUTH);
+
+        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftPanel, rightPanel);
+        splitPane.setDividerLocation(300);
+        add(splitPane, BorderLayout.CENTER);
 
         addButton.addActionListener(e -> {
-            String plate = plateField.getText().trim();
-            if (plate.isEmpty()) {
-                showWarning("Plaka boş olamaz!");
-                return;
+            String p = plateField.getText().toUpperCase().trim();
+            if(!p.isEmpty()){
+                Vehicle v = new Vehicle(p, newcomerCheck.isSelected());
+                vehicleListModel.addElement(v);
+                yatarVehicleCombo.addItem(v);
+                plateField.setText("");
             }
-
-            Vehicle v = new Vehicle(plate, studentCheck.isSelected());
-            vehicleListModel.addElement(v);
-            yatarVehicleCombo.addItem(v);
-
-            plateField.setText("");
-            studentCheck.setSelected(false);
         });
 
-        removeButton.addActionListener(e -> {
-            Vehicle selected = vehicleList.getSelectedValue();
-            if (selected == null) {
-                showWarning("Silmek için araç seçin!");
-                return;
-            }
-            vehicleListModel.removeElement(selected);
-            yatarVehicleCombo.removeItem(selected);
-        });
-
-        panel.add(inputPanel, BorderLayout.NORTH);
-        panel.add(scrollPane, BorderLayout.CENTER);
-
-        return panel;
+        generateBtn.addActionListener(e -> generatePlan());
     }
 
-    /* ================= RIGHT PANEL ================= */
-    private JPanel createTablePanel() {
-        JPanel panel = new JPanel(new BorderLayout());
-
-        titleLabel = new JLabel("Haftalık Dinlenme Programı", SwingConstants.CENTER);
-        titleLabel.setFont(titleLabel.getFont().deriveFont(Font.BOLD, 14f));
-        panel.add(titleLabel, BorderLayout.NORTH);
-
-        String[] columns = {
-                "Pazartesi", "Salı", "Çarşamba",
-                "Perşembe", "Cuma", "Cumartesi", "Pazar"
-        };
-
-        tableModel = new DefaultTableModel(columns, 0) {
-            public boolean isCellEditable(int r, int c) {
-                return false;
-            }
-        };
-
-        JTable table = new JTable(tableModel);
-        table.setRowHeight(28);
-        panel.add(new JScrollPane(table), BorderLayout.CENTER);
-
-        JPanel bottom = new JPanel(new GridLayout(3, 2, 5, 5));
-
-        // Sadece tarih için spinner
-        weekStartSpinner = new JSpinner(new SpinnerDateModel());
-        weekStartSpinner.setEditor(new JSpinner.DateEditor(weekStartSpinner, "dd/MM/yyyy"));
-
-        yatarDateSpinner = new JSpinner(new SpinnerDateModel());
-        yatarDateSpinner.setEditor(new JSpinner.DateEditor(yatarDateSpinner, "dd/MM/yyyy"));
-
-        bottom.add(new JLabel("Hafta Başlangıç (Pzt):"));
-        bottom.add(weekStartSpinner);
-
-        bottom.add(new JLabel("Yatar Tarihi:"));
-        bottom.add(yatarDateSpinner);
-
-        JButton generateButton = new JButton("Plan Oluştur");
-        bottom.add(new JLabel());
-        bottom.add(generateButton);
-
-        panel.add(bottom, BorderLayout.SOUTH);
-
-        generateButton.addActionListener(e -> generatePlan());
-
-        return panel;
-    }
-
-    /* ================= PLAN LOGIC ================= */
     private void generatePlan() {
-        Vehicle yatarVehicle = (Vehicle) yatarVehicleCombo.getSelectedItem();
-        if (yatarVehicle == null) {
-            showWarning("Yatara gidecek araç seçilmedi!");
-            return;
+        if (vehicleListModel.isEmpty()) return;
+
+        Vehicle yatarV = (Vehicle) yatarVehicleCombo.getSelectedItem();
+        DayOfWeek yatarDay = (DayOfWeek) yatarDayCombo.getSelectedItem();
+        DayOfWeek yatarNextDay = yatarDay.plus(1);
+
+        Map<DayOfWeek, List<String>> schedule = new EnumMap<>(DayOfWeek.class);
+        for (DayOfWeek d : DayOfWeek.values()) schedule.put(d, new ArrayList<>());
+
+        // Günlük kapasite limitlerini tanımla
+        Map<DayOfWeek, Integer> dailyLimits = new HashMap<>();
+        dailyLimits.put(DayOfWeek.MONDAY, 6);
+        dailyLimits.put(DayOfWeek.TUESDAY, 7);
+        dailyLimits.put(DayOfWeek.WEDNESDAY, 7);
+        dailyLimits.put(DayOfWeek.THURSDAY, 7);
+        dailyLimits.put(DayOfWeek.FRIDAY, 7); // Cuma için 7 ama algoritma "mecbur kalmadıkça" buraya atmayacak
+
+        List<Vehicle> allVehicles = new ArrayList<>();
+        for(int i=0; i<vehicleListModel.size(); i++) allVehicles.add(vehicleListModel.get(i));
+
+        // 1. ADIM: Yeni gelenleri Cumartesiye ayır
+        List<Vehicle> newcomers = allVehicles.stream().filter(v -> v.isNewcomer).collect(Collectors.toList());
+        for(Vehicle v : newcomers) {
+            schedule.get(DayOfWeek.SATURDAY).add(v.plate);
+            v.isNewcomer = false; // Gelecek hafta normale dönecek
+            v.lastRestDay = DayOfWeek.FRIDAY;
         }
 
-        LocalDate weekStart = toLocalDate((Date) weekStartSpinner.getValue());
-        LocalDate weekEnd = weekStart.plusDays(6);
-        LocalDate yatarDate = toLocalDate((Date) yatarDateSpinner.getValue());
+        // 2. ADIM: Normal araçları (ve yatar aracını) yerleştir
+        List<Vehicle> regulars = allVehicles.stream().filter(v -> !newcomers.contains(v)).collect(Collectors.toList());
 
-        updateTitle(weekStart, weekEnd);
+        // Araçları geçen haftaki günlerine göre sırala (Pazartesi olanlar en önce)
+        regulars.sort(Comparator.comparingInt(v -> v.lastRestDay.getValue()));
 
-        Map<DayOfWeek, List<Vehicle>> plan = new EnumMap<>(DayOfWeek.class);
-        for (DayOfWeek d : DayOfWeek.values()) {
-            plan.put(d, new ArrayList<>());
-        }
+        for (Vehicle v : regulars) {
+            DayOfWeek assignedDay = null;
+            DayOfWeek deadline = v.lastRestDay;
+            if (deadline.getValue() > 5) deadline = DayOfWeek.FRIDAY;
 
-        // Yatar aracı için yasak günler
-        Set<LocalDate> forbidden = Set.of(yatarDate, yatarDate.plusDays(1));
+            // Aracı Pazartesi'den başlayarak Deadline gününe kadar boş yer aramaya sok
+            for (int d = 1; d <= deadline.getValue(); d++) {
+                DayOfWeek currentDay = DayOfWeek.of(d);
 
-        // Tüm araçlar listesi (yatar dahil)
-        List<Vehicle> vehicles = Collections.list(vehicleListModel.elements());
-        vehicles.add(yatarVehicle);
+                // Yatar kısıtlaması kontrolü
+                if (v.equals(yatarV) && (currentDay == yatarDay || currentDay == yatarNextDay)) continue;
 
-        // Rastgele dağılım için araçları karıştır
-        Collections.shuffle(vehicles);
+                // Cuma stratejisi: Eğer deadline Cuma değilse ve başka günlerde yer varsa Cuma'yı pas geç
+                if (currentDay == DayOfWeek.FRIDAY && deadline != DayOfWeek.FRIDAY) continue;
 
-        Random rnd = new Random();
-
-        for (Vehicle v : vehicles) {
-            // Haftalık uygun günleri oluştur
-            List<LocalDate> availableDates = new ArrayList<>();
-            for (int i = 0; i < 5; i++) {
-                LocalDate date = weekStart.plusDays(i);
-                if (v == yatarVehicle && forbidden.contains(date)) continue;
-                availableDates.add(date);
-            }
-
-            // Günleri rastgele sırala
-            Collections.shuffle(availableDates, rnd);
-
-            // İlk boş/güvenli güne ata
-            boolean assigned = false;
-            for (LocalDate date : availableDates) {
-                DayOfWeek day = date.getDayOfWeek();
-                int limit = (day == DayOfWeek.FRIDAY) ? 4 : 7;
-
-                if (plan.get(day).size() < limit) {
-                    plan.get(day).add(v);
-                    v.lastRestDate = date;
-                    assigned = true;
+                // Kapasite kontrolü
+                if (schedule.get(currentDay).size() < dailyLimits.get(currentDay)) {
+                    assignedDay = currentDay;
                     break;
                 }
             }
 
-            // Eğer hiç uygun gün bulunamazsa, haftanın rastgele bir gününe zorla ata
-            if (!assigned && !availableDates.isEmpty()) {
-                LocalDate date = availableDates.get(rnd.nextInt(availableDates.size()));
-                plan.get(date.getDayOfWeek()).add(v);
-                v.lastRestDate = date;
+            // Eğer hala yer bulamadıysa (tüm günler dolduysa), zorunlu olarak boş bir yere at (Cuma dahil)
+            if (assignedDay == null) {
+                for (int d = 1; d <= 5; d++) {
+                    DayOfWeek backupDay = DayOfWeek.of(d);
+                    if (v.equals(yatarV) && (backupDay == yatarDay || backupDay == yatarNextDay)) continue;
+                    if (schedule.get(backupDay).size() < 10) { // Genişletilmiş limit
+                        assignedDay = backupDay;
+                        break;
+                    }
+                }
+            }
+
+            if (assignedDay != null) {
+                schedule.get(assignedDay).add(v.plate);
+                v.lastRestDay = assignedDay;
             }
         }
 
-        fillTable(plan);
+        updateTable(schedule);
     }
 
-    /* ================= TABLE ================= */
-    private void fillTable(Map<DayOfWeek, List<Vehicle>> plan) {
+    private void updateTable(Map<DayOfWeek, List<String>> schedule) {
         tableModel.setRowCount(0);
+        int maxRows = 0;
+        for (List<String> list : schedule.values()) maxRows = Math.max(maxRows, list.size());
 
-        int max = plan.values().stream()
-                .mapToInt(List::size)
-                .max()
-                .orElse(0);
-
-        for (int i = 0; i < max; i++) {
+        for (int i = 0; i < maxRows; i++) {
             Object[] row = new Object[7];
-            for (int d = 0; d < 7; d++) {
-                DayOfWeek day = DayOfWeek.of(d + 1);
-                List<Vehicle> list = plan.get(day);
-                row[d] = (i < list.size()) ? list.get(i).plate : "";
+            for (int d = 1; d <= 7; d++) {
+                List<String> cars = schedule.get(DayOfWeek.of(d));
+                row[d - 1] = (i < cars.size()) ? cars.get(i) : "";
             }
             tableModel.addRow(row);
         }
     }
 
-    /* ================= HELPERS ================= */
-    private LocalDate toLocalDate(Date d) {
-        return d.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
-    }
-
-    private void updateTitle(LocalDate start, LocalDate end) {
-        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd MMMM yyyy");
-        titleLabel.setText(
-                fmt.format(start) + " - " + fmt.format(end) +
-                        " Haftası Dinlenme Programı"
-        );
-    }
-
-    private void showWarning(String msg) {
-        JOptionPane.showMessageDialog(this, msg, "Uyarı", JOptionPane.WARNING_MESSAGE);
+    private void loadInitialData() {
+        BASE_REST_MAP.forEach((plate, day) -> {
+            Vehicle v = new Vehicle(plate, false);
+            v.lastRestDay = day;
+            vehicleListModel.addElement(v);
+            yatarVehicleCombo.addItem(v);
+        });
     }
 }
